@@ -12,7 +12,9 @@ import rikka.shizuku.server.util.Logger;
 
 public class ClientManager<ConfigMgr extends ConfigManager> {
 
-    protected static final Logger LOGGER = new Logger("UserServiceRecord");
+    // Was "UserServiceRecord", so every requireClient() refusal was logged under another class's name
+    // and sent the v13-attach investigation into the wrong file.
+    protected static final Logger LOGGER = new Logger("ClientManager");
 
     private final ConfigMgr configManager;
     private final List<ClientRecord> clientRecords = Collections.synchronizedList(new ArrayList<>());
