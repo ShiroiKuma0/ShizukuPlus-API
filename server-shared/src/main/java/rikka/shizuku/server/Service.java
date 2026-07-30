@@ -445,19 +445,30 @@ public abstract class Service<
                 }
                 // Pre-v11 clients send these as raw codes too, expecting the cursor to sit just after
                 // the interface token — which is where enforceInterface() above leaves it.
-                case 2: // getVersion
+                //
+                // ⛔ A raw case here may ONLY name a code that no CURRENT AIDL method answers to,
+                // because this switch runs before the generated stub and silently wins. Wire code is
+                // FIRST_CALL_TRANSACTION + id, i.e. id + 1, so the live codes are getVersion 3,
+                // getUid 4, checkPermission 5, newProcess 8, getSELinuxContext 9. Cases 2 and 7 are
+                // free (no live method sits at id 1 or 6) and stay; the legacy cases for 3, 4 and 8
+                // are gone because each shadowed a live method one slot along.
+                //
+                // Code 8 was the expensive one. A modern client calling newProcess transacts 8, was
+                // answered with getSELinuxContext, and read that String back as a strong binder —
+                // which yields null, so Shizuku.newProcess() returned null for EVERY caller and
+                // ShizukuRemoteProcess threw "the privileged service could not start the command".
+                // That is SHIZUKUPLUS-85, and it took the whole PrivilegedShell Shizuku tier with it:
+                // "Grant now", "Make owner" and the updater all fell through to their no-privilege
+                // fallbacks while the server was running perfectly.
+                //
+                // The collision is inherent — old wire 8 meant getSELinuxContext, new wire 8 means
+                // newProcess — so it cannot be served both ways from one code. Current clients win:
+                // the api library ships inside this app.
+                case 2: // getVersion (legacy id 1)
                     reply.writeNoException();
                     reply.writeInt(getVersion());
                     return true;
-                case 3: // getUid
-                    reply.writeNoException();
-                    reply.writeInt(getUid());
-                    return true;
-                case 4: // checkPermission
-                    reply.writeNoException();
-                    reply.writeInt(checkPermission(data.readString()));
-                    return true;
-                case 7: { // newProcess
+                case 7: { // newProcess (legacy id 6)
                     String[] cmd = data.createStringArray();
                     String[] env = data.createStringArray();
                     String dir = data.readString();
@@ -466,10 +477,6 @@ public abstract class Service<
                     reply.writeStrongBinder(process != null ? process.asBinder() : null);
                     return true;
                 }
-                case 8: // getSELinuxContext
-                    reply.writeNoException();
-                    reply.writeString(getSELinuxContext());
-                    return true;
             }
 
             // Not a raw code we handle: rewind before falling through, because BOTH fall-through paths
