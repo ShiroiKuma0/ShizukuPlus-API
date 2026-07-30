@@ -15,7 +15,6 @@ import androidx.annotation.Nullable;
 
 import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.Method;
 import java.util.Arrays;
 
 import moe.shizuku.server.IRemoteProcess;
@@ -392,27 +391,60 @@ public abstract class Service<
     @CallSuper
     @Override
     public boolean onTransact(int code, Parcel data, Parcel reply, int flags) throws RemoteException {
+        // Every client vintage writes the SAME interface token: ShizukuApiConstants.BINDER_DESCRIPTOR
+        // *is* the literal "moe.shizuku.server.IShizukuService". So there was never a legacy/new
+        // distinction to draw from the descriptor, and the branch that tried to draw one could not
+        // reach its "new" side — which was the only place code 17 (v13 attachApplication) was handled.
+        //
+        // enforceInterface() is public SDK, and it both validates the token and leaves the read cursor
+        // exactly where the raw cases below expect it. It replaces a readInterfaceTokenCompat() that
+        // reflected for a non-existent Parcel.readInterfaceToken() and returned "" on any failure —
+        // making every comparison false and skipping this entire block, both attachApplication entry
+        // points included, for every caller that has ever connected.
         data.setDataPosition(0);
-        boolean isKnownDescriptor = false;
+        boolean ourToken;
         try {
-            data.enforceInterface("moe.shizuku.server.IShizukuService");
-            isKnownDescriptor = true;
+            data.enforceInterface(ShizukuApiConstants.BINDER_DESCRIPTOR);
+            ourToken = true;
         } catch (SecurityException e) {
-            // Not a Shizuku interface transaction (e.g. rish uses rikka.rish.IRishService)
+            ourToken = false;
+            data.setDataPosition(0); // leave the parcel exactly as we found it
         }
 
-        if (isKnownDescriptor) {
+        if (ourToken) {
             if (code == ShizukuApiConstants.BINDER_TRANSACTION_transact) {
                 transactRemote(data, reply, flags);
                 return true;
             }
 
-            // v12 and below callers: handle manually to avoid descriptor mismatch in super.onTransact.
-            // Codes not in this switch fall through to the v13+ block below.
-            // Note: case 14 (v12-era attachApplication: IBinder + String) is intentionally absent —
-            // code 14 is now requestPermission(int) per current AIDL, and all pre-2020 v12 clients
-            // are no longer in circulation.
+            // Both attach codes are hand-written raw transactions in Shizuku.java rather than proxy
+            // calls, and both must be intercepted for EVERY client regardless of vintage.
+            //
+            // Raw 17 is the one that mattered: the AIDL declares
+            // shouldShowRequestPermissionRationale() = 16, and AIDL wire codes are
+            // FIRST_CALL_TRANSACTION + id with FIRST_CALL_TRANSACTION == 1, so that method also
+            // answers to 17. Left to the generated stub, a v13 client's attach was dispatched to it,
+            // which calls requireClient() and throws "Not an attached client" at the very client
+            // trying to become one — every modern rikka-API client, not just one app.
             switch (code) {
+                case 17: { // attachApplication, v13+ payload: (IBinder, int hasArgs, Bundle?)
+                    IBinder application = data.readStrongBinder();
+                    Bundle args = data.readInt() != 0 ? Bundle.CREATOR.createFromParcel(data) : null;
+                    attachApplication(IShizukuApplication.Stub.asInterface(application), args);
+                    reply.writeNoException();
+                    return true;
+                }
+                case 14: { // attachApplication, v11 payload: (IBinder, String packageName)
+                    IBinder application = data.readStrongBinder();
+                    Bundle args = new Bundle();
+                    args.putString(ShizukuApiConstants.ATTACH_APPLICATION_PACKAGE_NAME, data.readString());
+                    args.putInt(ShizukuApiConstants.ATTACH_APPLICATION_API_VERSION, -1);
+                    attachApplication(IShizukuApplication.Stub.asInterface(application), args);
+                    reply.writeNoException();
+                    return true;
+                }
+                // Pre-v11 clients send these as raw codes too, expecting the cursor to sit just after
+                // the interface token — which is where enforceInterface() above leaves it.
                 case 2: // getVersion
                     reply.writeNoException();
                     reply.writeInt(getVersion());
@@ -425,7 +457,7 @@ public abstract class Service<
                     reply.writeNoException();
                     reply.writeInt(checkPermission(data.readString()));
                     return true;
-                case 7: // newProcess
+                case 7: { // newProcess
                     String[] cmd = data.createStringArray();
                     String[] env = data.createStringArray();
                     String dir = data.readString();
@@ -433,39 +465,24 @@ public abstract class Service<
                     reply.writeNoException();
                     reply.writeStrongBinder(process != null ? process.asBinder() : null);
                     return true;
+                }
                 case 8: // getSELinuxContext
                     reply.writeNoException();
                     reply.writeString(getSELinuxContext());
                     return true;
             }
-            // v13+ codes: requestPermission (14) and attachApplication (17).
-            // Previously in a dead else-branch: code 17 fell through to super.onTransact() with
-            // data already past the interface token, causing enforceInterface() to read the binder
-            // argument as a descriptor string and throw — leaving clientRecord null for all API
-            // v13+ callers. That null record caused a 4-byte misalignment in transactRemote (flags
-            // field skipped), forwarding malformed data to PM; IPackageManager.packageInstaller
-            // returned null → NPE in installer apps (#406).
-            if (code == 14 /* requestPermission */) {
-                requestPermission(data.readInt());
-                reply.writeNoException();
-                return true;
-            } else if (code == 17 /* attachApplication v13+ */) {
-                IBinder binder = data.readStrongBinder();
-                Bundle args = data.readInt() != 0 ? Bundle.CREATOR.createFromParcel(data) : null;
-                attachApplication(IShizukuApplication.Stub.asInterface(binder), args);
-                reply.writeNoException();
-                return true;
-            }
+
+            // Not a raw code we handle: rewind before falling through, because BOTH fall-through paths
+            // read the token themselves — RishService.onTransact calls data.enforceInterface() and so
+            // does the AIDL-generated Stub.onTransact. Without this rewind, enforceInterface() above
+            // turns every ordinary AIDL call into "Binder invocation to an incorrect interface"; the
+            // dangling cursor was a latent second defect that only bites once the token read works.
+            data.setDataPosition(0);
         }
 
-        // readInterfaceTokenCompat() above advanced data past the interface token.
-        // Reset to position 0 so rishService and super.onTransact() can call their
-        // own enforceInterface() from the correct position.
-        data.setDataPosition(0);
         if (rishService.onTransact(code, data, reply, flags)) {
             return true;
         }
-        data.setDataPosition(0);
         return super.onTransact(code, data, reply, flags);
     }
 }

@@ -44,7 +44,14 @@ interface IShizukuService {
 
     boolean checkSelfPermission() = 15;
 
-    boolean shouldShowRequestPermissionRationale() = 16;
+    // Renumbered off 16. AIDL wire code = FIRST_CALL_TRANSACTION + id, and FIRST_CALL_TRANSACTION is
+    // 1, so declared id 16 answered to wire 17 — the same code Shizuku.java's attachApplicationV13
+    // sends as a hand-written raw transaction. Service.onTransact now intercepts 17 before the stub
+    // sees it, which hides the collision; leaving the declaration on 16 would leave the trap in place
+    // for whoever next adds a path that reaches the stub with code 17.
+    // NEVER declare ids 13 or 16 in this interface: their wire codes (14 and 17) are the two raw
+    // attach codes.
+    boolean shouldShowRequestPermissionRationale() = 122;
 
     void attachApplication(in IShizukuApplication application,in Bundle args) = 17;
 
