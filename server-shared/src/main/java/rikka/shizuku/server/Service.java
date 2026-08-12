@@ -490,6 +490,11 @@ public abstract class Service<
         if (rishService.onTransact(code, data, reply, flags)) {
             return true;
         }
+        // Belt and braces for the same cursor trap one layer down. Every RishService branch that
+        // reads the parcel currently returns true, so this cannot fire today — but the class of bug
+        // it guards is the one this method has now been fixed for twice, and a rish code added later
+        // that enforces the token and then declines would hand super.onTransact a dangling cursor.
+        data.setDataPosition(0);
         return super.onTransact(code, data, reply, flags);
     }
 }
