@@ -1035,6 +1035,15 @@ public class Shizuku {
             }
         } catch (RemoteException e) {
             // Not a Shizuku+ server or transaction failed
+        } catch (SecurityException e) {
+            // The server enforces a caller permission on this transaction, so an unauthorized
+            // caller gets a SecurityException back through readException(). SecurityException is a
+            // RuntimeException, NOT a RemoteException, so the catch above does not cover it and it
+            // would escape this method uncaught.
+            //
+            // That would break the contract: this is a capability probe a client is expected to
+            // call BEFORE it has been authorized, precisely to decide whether the enhanced API is
+            // usable. "Not permitted" is the "no" answer, not a crash.
         } finally {
             reply.recycle();
             data.recycle();
@@ -1060,6 +1069,11 @@ public class Shizuku {
                 }
             } catch (RemoteException e) {
                 // Not a Shizuku+ server or transaction failed
+            } catch (SecurityException e) {
+                // See isCustomApiEnabled(): the server enforces a caller permission here, and the
+                // resulting SecurityException is a RuntimeException that the catch above misses.
+                // This method is @Nullable and already answers null for "unavailable", so an
+                // unauthorized caller gets null rather than an uncaught exception.
             } finally {
                 reply.recycle();
                 data.recycle();
