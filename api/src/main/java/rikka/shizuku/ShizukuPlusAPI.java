@@ -1682,6 +1682,7 @@ public class ShizukuPlusAPI {
 
     public static class ApkPatcher {
 
+        @Nullable
         private static IApkPatcher getService() {
             IShizukuService svc = requirePlusService();
             if (svc == null) return null;
