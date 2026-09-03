@@ -420,7 +420,7 @@ public abstract class Service<
             // Both attach codes are hand-written raw transactions in Shizuku.java rather than proxy
             // calls, and both must be intercepted for EVERY client regardless of vintage.
             //
-            // Raw 17 is the one that mattered: the AIDL declares
+            // Raw 17 is the one that mattered: upstream's AIDL declares
             // shouldShowRequestPermissionRationale() = 16, and AIDL wire codes are
             // FIRST_CALL_TRANSACTION + id with FIRST_CALL_TRANSACTION == 1, so that method also
             // answers to 17. Left to the generated stub, a v13 client's attach was dispatched to it,

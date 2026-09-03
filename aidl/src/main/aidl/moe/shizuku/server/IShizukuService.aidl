@@ -51,7 +51,13 @@ interface IShizukuService {
     // for whoever next adds a path that reaches the stub with code 17.
     // NEVER declare ids 13 or 16 in this interface: their wire codes (14 and 17) are the two raw
     // attach codes.
-    boolean shouldShowRequestPermissionRationale() = 122;
+    //
+    // Parked at 500, far above upstream's growth path. It first landed on 122, and upstream then
+    // claimed 122-128 for getStatusBarGovernorPlus()..getApkPatcher() in a single day (r2386-r2397).
+    // A rebase merged both sides cleanly and produced a DUPLICATE id 122 with no conflict marker,
+    // so the only warning was aidl failing later. Keep this id well clear of the block upstream is
+    // still appending to; the wire code is private to this fork, so any free id is safe.
+    boolean shouldShowRequestPermissionRationale() = 500;
 
     void attachApplication(in IShizukuApplication application,in Bundle args) = 17;
 
