@@ -144,6 +144,15 @@ interface IPrivilegedDataSource {
      */
     String getClipboard();
 
+    /**
+     * Write plain text to the system clipboard.
+     * Uses direct IClipboard binder IPC — no Context required.
+     * Shell's uid 2000 is always permitted to write to the clipboard without
+     * being in the foreground (it is in the shell package whitelist).
+     * Returns false if the IClipboard service is unavailable.
+     */
+    boolean setClipboard(String text);
+
     // ── Notifications (DUMP — install permission) ─────────────────────────────
 
     /**

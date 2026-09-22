@@ -28,6 +28,7 @@ import af.shizuku.server.IAppInspector;
 import af.shizuku.server.IPrivilegedDataSource;
 import af.shizuku.server.IBackupRestorePlus;
 import af.shizuku.server.IApkPatcher;
+import af.shizuku.server.IDeviceControlPlus;
 import moe.shizuku.server.IShizukuService;
 import af.shizuku.server.IStorageProxy;
 import af.shizuku.server.IVirtualMachineManager;
@@ -1304,6 +1305,17 @@ public class ShizukuPlusAPI {
         }
 
         /**
+         * Write plain text to the system clipboard.
+         * Shell's uid 2000 is whitelisted to write the clipboard without being in the foreground.
+         */
+        public static boolean setClipboard(@NonNull String text) {
+            IPrivilegedDataSource s = getService();
+            if (s == null) return false;
+            try { return s.setClipboard(text); }
+            catch (RemoteException e) { Log.w(TAG, "setClipboard", e); return false; }
+        }
+
+        /**
          * Get all current notifications with full content (--noredact).
          * Requires DUMP (install-time grant on uid 2000).
          */
@@ -1770,6 +1782,178 @@ public class ShizukuPlusAPI {
             if (s == null) return;
             try { s.cleanupAllTempDebug(); }
             catch (RemoteException e) { Log.w(TAG, "cleanupAllTempDebug", e); }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // DeviceControl — connectivity, power, display, audio, and settings control
+    // -------------------------------------------------------------------------
+
+    public static class DeviceControl {
+
+        @Nullable
+        private static IDeviceControlPlus getService() {
+            IShizukuService svc = requirePlusService();
+            if (svc == null) return null;
+            try { return svc.getDeviceControlPlus(); }
+            catch (RemoteException e) { Log.w(TAG, "getDeviceControlPlus", e); return null; }
+        }
+
+        // ── Connectivity ──────────────────────────────────────────────────────
+
+        /** Enable or disable airplane mode. */
+        public static boolean setAirplaneModeEnabled(boolean enabled) {
+            IDeviceControlPlus s = getService(); if (s == null) return false;
+            try { return s.setAirplaneModeEnabled(enabled); }
+            catch (RemoteException e) { Log.w(TAG, "setAirplaneModeEnabled", e); return false; }
+        }
+
+        /** Enable or disable WiFi radio. */
+        public static boolean setWifiEnabled(boolean enabled) {
+            IDeviceControlPlus s = getService(); if (s == null) return false;
+            try { return s.setWifiEnabled(enabled); }
+            catch (RemoteException e) { Log.w(TAG, "setWifiEnabled", e); return false; }
+        }
+
+        /** Enable or disable Bluetooth adapter. */
+        public static boolean setBluetoothEnabled(boolean enabled) {
+            IDeviceControlPlus s = getService(); if (s == null) return false;
+            try { return s.setBluetoothEnabled(enabled); }
+            catch (RemoteException e) { Log.w(TAG, "setBluetoothEnabled", e); return false; }
+        }
+
+        /** Enable or disable mobile data. */
+        public static boolean setMobileDataEnabled(boolean enabled) {
+            IDeviceControlPlus s = getService(); if (s == null) return false;
+            try { return s.setMobileDataEnabled(enabled); }
+            catch (RemoteException e) { Log.w(TAG, "setMobileDataEnabled", e); return false; }
+        }
+
+        /** Enable or disable NFC adapter. */
+        public static boolean setNfcEnabled(boolean enabled) {
+            IDeviceControlPlus s = getService(); if (s == null) return false;
+            try { return s.setNfcEnabled(enabled); }
+            catch (RemoteException e) { Log.w(TAG, "setNfcEnabled", e); return false; }
+        }
+
+        // ── USB ───────────────────────────────────────────────────────────────
+
+        /**
+         * Switch USB function. Valid values: "mtp", "adb", "charging", "none", "rndis", "midi".
+         */
+        public static boolean setUsbFunction(@NonNull String function) {
+            IDeviceControlPlus s = getService(); if (s == null) return false;
+            try { return s.setUsbFunction(function); }
+            catch (RemoteException e) { Log.w(TAG, "setUsbFunction", e); return false; }
+        }
+
+        // ── Power ─────────────────────────────────────────────────────────────
+
+        /**
+         * Reboot the device. reason: null = normal, "recovery", "bootloader", "fastboot", "quiescent".
+         */
+        public static boolean reboot(@Nullable String reason) {
+            IDeviceControlPlus s = getService(); if (s == null) return false;
+            try { return s.reboot(reason); }
+            catch (RemoteException e) { Log.w(TAG, "reboot", e); return false; }
+        }
+
+        /** Shut down the device. */
+        public static boolean shutdown() {
+            IDeviceControlPlus s = getService(); if (s == null) return false;
+            try { return s.shutdown(); }
+            catch (RemoteException e) { Log.w(TAG, "shutdown", e); return false; }
+        }
+
+        // ── Display ───────────────────────────────────────────────────────────
+
+        /** Set screen brightness (0-255). Also disables auto-brightness. */
+        public static boolean setScreenBrightness(int level) {
+            IDeviceControlPlus s = getService(); if (s == null) return false;
+            try { return s.setScreenBrightness(level); }
+            catch (RemoteException e) { Log.w(TAG, "setScreenBrightness", e); return false; }
+        }
+
+        /** Enable or disable adaptive (auto) brightness. */
+        public static boolean setAutoBrightnessEnabled(boolean enabled) {
+            IDeviceControlPlus s = getService(); if (s == null) return false;
+            try { return s.setAutoBrightnessEnabled(enabled); }
+            catch (RemoteException e) { Log.w(TAG, "setAutoBrightnessEnabled", e); return false; }
+        }
+
+        /** Set screen timeout in milliseconds (e.g. 30000, -1 = never). */
+        public static boolean setScreenTimeout(int ms) {
+            IDeviceControlPlus s = getService(); if (s == null) return false;
+            try { return s.setScreenTimeout(ms); }
+            catch (RemoteException e) { Log.w(TAG, "setScreenTimeout", e); return false; }
+        }
+
+        /** Enable or disable auto-rotate. */
+        public static boolean setAutoRotateEnabled(boolean enabled) {
+            IDeviceControlPlus s = getService(); if (s == null) return false;
+            try { return s.setAutoRotateEnabled(enabled); }
+            catch (RemoteException e) { Log.w(TAG, "setAutoRotateEnabled", e); return false; }
+        }
+
+        // ── Audio ─────────────────────────────────────────────────────────────
+
+        /**
+         * Set volume for an audio stream.
+         * stream: AudioManager.STREAM_* (0=VOICE_CALL, 1=SYSTEM, 2=RING, 3=MUSIC, 4=ALARM, 5=NOTIFICATION)
+         */
+        public static boolean setStreamVolume(int stream, int level) {
+            IDeviceControlPlus s = getService(); if (s == null) return false;
+            try { return s.setStreamVolume(stream, level); }
+            catch (RemoteException e) { Log.w(TAG, "setStreamVolume", e); return false; }
+        }
+
+        /** Get current volume for an audio stream. Returns -1 on failure. */
+        public static int getStreamVolume(int stream) {
+            IDeviceControlPlus s = getService(); if (s == null) return -1;
+            try { return s.getStreamVolume(stream); }
+            catch (RemoteException e) { Log.w(TAG, "getStreamVolume", e); return -1; }
+        }
+
+        // ── System Appearance ─────────────────────────────────────────────────
+
+        /** Set font scale (e.g. 0.85, 1.0, 1.15, 1.3). Clamped to [0.70, 2.00]. */
+        public static boolean setFontScale(float scale) {
+            IDeviceControlPlus s = getService(); if (s == null) return false;
+            try { return s.setFontScale(scale); }
+            catch (RemoteException e) { Log.w(TAG, "setFontScale", e); return false; }
+        }
+
+        /**
+         * Enable or disable all system animation scales.
+         * false = disable (set all to 0); true = restore to 1.0.
+         */
+        public static boolean setAnimationsEnabled(boolean enabled) {
+            IDeviceControlPlus s = getService(); if (s == null) return false;
+            try { return s.setAnimationsEnabled(enabled); }
+            catch (RemoteException e) { Log.w(TAG, "setAnimationsEnabled", e); return false; }
+        }
+
+        // ── Settings convenience ──────────────────────────────────────────────
+
+        /**
+         * Write a single settings key.
+         * namespace: "system", "secure", or "global".
+         */
+        public static boolean putSetting(@NonNull String namespace, @NonNull String key, @NonNull String value) {
+            IDeviceControlPlus s = getService(); if (s == null) return false;
+            try { return s.putSetting(namespace, key, value); }
+            catch (RemoteException e) { Log.w(TAG, "putSetting", e); return false; }
+        }
+
+        /**
+         * Read a single settings key. Returns null if not found.
+         * namespace: "system", "secure", or "global".
+         */
+        @Nullable
+        public static String getSetting(@NonNull String namespace, @NonNull String key) {
+            IDeviceControlPlus s = getService(); if (s == null) return null;
+            try { return s.getSetting(namespace, key); }
+            catch (RemoteException e) { Log.w(TAG, "getSetting", e); return null; }
         }
     }
 }
