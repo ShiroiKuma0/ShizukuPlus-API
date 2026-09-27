@@ -118,6 +118,33 @@ public class ShizukuPlusAPI {
     }
 
     /**
+     * Executes a detached privileged command that persists even after the calling app exits or disconnects (#531).
+     *
+     * @param command Shell command string to execute in detached background mode
+     * @return ShizukuRemoteProcess handle to the running process, or null if service is unavailable
+     */
+    @Nullable
+    public static ShizukuRemoteProcess executeShellDetached(@NonNull String command) {
+        return executeShellDetached(new String[]{"sh", "-c", command}, null, null);
+    }
+
+    /**
+     * Executes a detached privileged process with custom arguments, environment, and directory (#531).
+     * The spawned process is detached from the caller's lifecycle and will not be killed on caller death.
+     */
+    @Nullable
+    public static ShizukuRemoteProcess executeShellDetached(@NonNull String[] cmd, @Nullable String[] env, @Nullable String dir) {
+        String[] detachedEnv;
+        if (env == null || env.length == 0) {
+            detachedEnv = new String[]{"SHIZUKU_DETACHED=1"};
+        } else {
+            detachedEnv = java.util.Arrays.copyOf(env, env.length + 1);
+            detachedEnv[env.length] = "SHIZUKU_DETACHED=1";
+        }
+        return Shizuku.newProcess(cmd, detachedEnv, dir);
+    }
+
+    /**
      * Execute an argument array through Shizuku and return the result
      * synchronously. Blocks up to {@link #SHELL_TIMEOUT_SECONDS} seconds.
      *

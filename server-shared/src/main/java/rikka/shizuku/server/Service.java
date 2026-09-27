@@ -391,8 +391,23 @@ public abstract class Service<
             return new FailedProcess(e.getMessage());
         }
 
+        boolean detached = false;
+        if (env != null) {
+            for (String e : env) {
+                if ("SHIZUKU_DETACHED=1".equals(e) || "SHIZUKU_DETACH=1".equals(e)) {
+                    detached = true;
+                    break;
+                }
+            }
+        }
+        if (!detached && cmd != null && cmd.length > 0) {
+            if ("nohup".equals(cmd[0]) || "setsid".equals(cmd[0])) {
+                detached = true;
+            }
+        }
+
         ClientRecord clientRecord = clientManager.findClient(Binder.getCallingUid(), Binder.getCallingPid());
-        IBinder token = clientRecord != null ? clientRecord.client.asBinder() : null;
+        IBinder token = (detached || clientRecord == null) ? null : clientRecord.client.asBinder();
 
         return new RemoteProcessHolder(process, token);
     }
